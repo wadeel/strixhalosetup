@@ -1,40 +1,85 @@
-#!usrbinenv bash
-set -euo pipefail
+# Strix Halo setup (Ubuntu Server 24.04 + ROCm + llama.cpp)
 
-if [[ $EUID -ne 0 ]]; then
-  echo Run as root (sudo).
-  exit 1
-fi
+This repo installs ROCm 6.3 and builds `llama.cpp` with HIP support so you can run large GGUF models on AMD GPUs.
 
-target_user=${SUDO_USER-${USER}}
-target_home=$(getent passwd $target_user  cut -d -f6)
+## 0) Prerequisites to verify first
 
-export DEBIAN_FRONTEND=noninteractive
-apt update
-apt -y install wget gpg curl git build-essential cmake ninja-build pkg-config python3 python3-pip
+- Ubuntu Server **24.04 (noble)**.
+- Supported AMD GPU + driver stack compatible with ROCm 6.3.
+- Enough memory/VRAM for your chosen 70B quantization:
+  - 70B Q4 variants typically need roughly **40-50 GB** combined GPU/host memory.
+  - Plan additional headroom for long context windows.
 
-mkdir -p etcaptkeyrings
-wget -qO- httpsrepo.radeon.comrocmrocm.gpg.key  gpg --dearmor -o etcaptkeyringsrocm.gpg
+## 1) One-time bootstrap command (fresh server)
 
-cat  etcaptsources.list.drocm.list 'LIST'
-deb [arch=amd64 signed-by=etcaptkeyringsrocm.gpg] httpsrepo.radeon.comrocmapt6.3 noble main
-LIST
+If this machine has nothing installed yet, run this first so you can clone from GitHub:
 
-apt update
-apt -y install rocm-hip-runtime rocm-hip-sdk rocm-smi-lib rocminfo hipcc
+```bash
+sudo apt update && sudo apt install -y git curl ca-certificates
+```
 
-usermod -aG render,video $target_user
+Then clone this repo:
 
-sudo -u $target_user bash USER_SCRIPT
-set -euo pipefail
-cd $target_home
-if [[ ! -d llama.cpp ]]; then
-  git clone httpsgithub.comggerganovllama.cpp.git
-fi
-cd llama.cpp
-cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1151
-cmake --build build -j$(nproc)
-USER_SCRIPT
+```bash
+git clone https://github.com/<your-org-or-user>/strixhalosetup.git
+cd strixhalosetup
+```
 
-echo ROCm + llama.cpp complete. Reboot recommended (group changes).
-echo Verify optrocmbinrocminfo  grep -i gfx
+## 2) Run ROCm + llama.cpp installer
+
+```bash
+sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
+```
+
+What it does:
+- Installs build dependencies and ROCm packages.
+- Adds your user to `render` and `video` groups.
+- Auto-detects your `AMDGPU_TARGETS` value from `rocminfo` (or uses one you set manually).
+- Clones and builds `llama.cpp` with `-DGGML_HIP=ON`.
+
+If auto-detect fails, re-run with manual target, for example:
+
+```bash
+sudo AMDGPU_TARGETS=gfx1100 bash scripts/scriptsinstall-rocm-llamacpp.sh
+```
+
+## 3) Reboot and verify ROCm visibility
+
+```bash
+sudo reboot
+```
+
+After reconnect:
+
+```bash
+/opt/rocm/bin/rocminfo | grep -i gfx
+id -nG "$USER"
+```
+
+You should see a `gfx...` target and your user should include `render` and `video` groups.
+
+## 4) Run a 70B model with llama.cpp
+
+Example command (adjust model path, quant, context, and GPU layers):
+
+```bash
+cd ~/llama.cpp
+./build/bin/llama-cli \
+  -m /models/your-70b-model.gguf \
+  -ngl 999 \
+  -c 4096 \
+  -n 256 \
+  -p "Write a one paragraph test response."
+```
+
+Notes:
+- `-ngl 999` asks llama.cpp to offload as many layers as possible.
+- If memory is tight, use a smaller quantization or lower context.
+
+## Optional: shell session logging installer
+
+```bash
+sudo bash scripts/scriptsinstall-shell-logging.sh
+```
+
+This enables login-shell capture to `/var/log/shell-capture/<user>/`.
