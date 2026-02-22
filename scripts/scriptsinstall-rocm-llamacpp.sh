@@ -11,7 +11,7 @@ target_home="$(getent passwd "$target_user" | cut -d: -f6)"
 
 export DEBIAN_FRONTEND=noninteractive
 apt update
-apt -y install wget gpg curl git build-essential cmake ninja-build pkg-config python3 python3-pip
+apt -y install wget gpg curl git build-essential cmake ninja-build pkg-config python3 python3-pip libssl-dev
 
 mkdir -p /etc/apt/keyrings
 wget -qO- https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
