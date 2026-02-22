@@ -49,6 +49,17 @@ export ROCM_PATH="$rocm_root"
 export HIP_PATH="$rocm_root"
 export HIPCXX="$hipcc_path"
 
+# CMake 3.28+ rejects hipcc wrappers for CMAKE_HIP_COMPILER. Use clang directly.
+hip_clang_path="$ROCM_PATH/llvm/bin/clang++"
+if [[ ! -x "$hip_clang_path" ]]; then
+  hip_clang_path="$(command -v clang++ || true)"
+fi
+
+if [[ -z "$hip_clang_path" ]]; then
+  echo "Could not find a usable clang++ for CMake HIP compiler detection."
+  exit 1
+fi
+
 default_amdgpu_targets="${DEFAULT_AMDGPU_TARGETS:-gfx1151}"
 
 if [[ -z "${AMDGPU_TARGETS:-}" ]]; then
@@ -64,12 +75,13 @@ set -euo pipefail
 export ROCM_PATH="$ROCM_PATH"
 export HIP_PATH="$HIP_PATH"
 export HIPCXX="$HIPCXX"
+export HIP_CLANG_PATH="$hip_clang_path"
 cd "$target_home"
 if [[ ! -d llama.cpp ]]; then
   git clone https://github.com/ggerganov/llama.cpp.git
 fi
 cd llama.cpp
-cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS" -DCMAKE_HIP_COMPILER="$HIPCXX"
+cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS" -DCMAKE_HIP_COMPILER="$HIP_CLANG_PATH"
 cmake --build build -j"$(nproc)"
 USER_SCRIPT
 
