@@ -57,16 +57,50 @@ if [[ -z "${AMDGPU_TARGETS:-}" ]]; then
     rocminfo_path="$rocm_root/bin/rocminfo"
   fi
 
-  detected_target="$("$rocminfo_path" 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) {print $i; exit}}')"
-  if [[ -z "$detected_target" ]]; then
-    echo "Could not auto-detect AMD GPU target from rocminfo."
+  detect_targets() {
+    local from_rocminfo=""
+    local from_hipconfig=""
+    local from_hipcc=""
+
+    if [[ -x "$rocminfo_path" ]]; then
+      from_rocminfo="$("$rocminfo_path" 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) print $i}' | sort -u | paste -sd';' -)"
+    fi
+
+    if [[ -x "$hipconfig_path" ]]; then
+      from_hipconfig="$("$hipconfig_path" --amdgpu-target 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) print $i}' | sort -u | paste -sd';' -)"
+    fi
+
+    if [[ -x "$hipcc_path" ]]; then
+      from_hipcc="$("$hipcc_path" --offload-arch 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) print $i}' | sort -u | paste -sd';' -)"
+    fi
+
+    if [[ -n "$from_rocminfo" ]]; then
+      printf '%s' "$from_rocminfo"
+      return
+    fi
+
+    if [[ -n "$from_hipconfig" ]]; then
+      printf '%s' "$from_hipconfig"
+      return
+    fi
+
+    if [[ -n "$from_hipcc" ]]; then
+      printf '%s' "$from_hipcc"
+      return
+    fi
+  }
+
+  detected_targets="$(detect_targets || true)"
+  if [[ -z "$detected_targets" ]]; then
+    echo "Could not auto-detect AMD GPU target."
+    echo "Checked rocminfo, hipconfig --amdgpu-target, and hipcc --offload-arch."
     echo "hipcc: $hipcc_path"
     echo "hipconfig: $hipconfig_path"
     echo "rocminfo: $rocminfo_path"
     echo "Set AMDGPU_TARGETS manually (example: AMDGPU_TARGETS=gfx1100)."
     exit 1
   fi
-  export AMDGPU_TARGETS="$detected_target"
+  export AMDGPU_TARGETS="$detected_targets"
 fi
 
 echo "Using AMDGPU_TARGETS=$AMDGPU_TARGETS"
