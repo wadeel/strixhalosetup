@@ -31,10 +31,38 @@ apt -y --allow-downgrades install rocm-cmake rocm-hip-runtime rocm-hip-runtime-d
 
 usermod -aG render,video "$target_user"
 
+# Resolve ROCm tools from PATH first so the script works across package layouts.
+hipcc_path="$(command -v hipcc || true)"
+hipconfig_path="$(command -v hipconfig || true)"
+rocminfo_path="$(command -v rocminfo || true)"
+
+if [[ -z "$hipcc_path" || -z "$hipconfig_path" ]]; then
+  echo "Could not find hipcc/hipconfig in PATH after installing ROCm packages."
+  echo "Verify installation and rerun this script."
+  exit 1
+fi
+
+# Prefer the canonical /opt/rocm symlink when available.
+rocm_root="$(dirname "$(dirname "$hipcc_path")")"
+if [[ -d /opt/rocm ]]; then
+  rocm_root="/opt/rocm"
+fi
+
+export ROCM_PATH="$rocm_root"
+export HIP_PATH="$rocm_root"
+export HIPCXX="$hipcc_path"
+
 if [[ -z "${AMDGPU_TARGETS:-}" ]]; then
-  detected_target="$(/opt/rocm/bin/rocminfo 2>/dev/null | awk '/Name: *gfx/{print $2; exit}')"
+  if [[ -z "$rocminfo_path" ]]; then
+    rocminfo_path="$rocm_root/bin/rocminfo"
+  fi
+
+  detected_target="$("$rocminfo_path" 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) {print $i; exit}}')"
   if [[ -z "$detected_target" ]]; then
     echo "Could not auto-detect AMD GPU target from rocminfo."
+    echo "hipcc: $hipcc_path"
+    echo "hipconfig: $hipconfig_path"
+    echo "rocminfo: $rocminfo_path"
     echo "Set AMDGPU_TARGETS manually (example: AMDGPU_TARGETS=gfx1100)."
     exit 1
   fi
@@ -45,12 +73,15 @@ echo "Using AMDGPU_TARGETS=$AMDGPU_TARGETS"
 
 sudo -u "$target_user" bash <<USER_SCRIPT
 set -euo pipefail
+export ROCM_PATH="$ROCM_PATH"
+export HIP_PATH="$HIP_PATH"
+export HIPCXX="$HIPCXX"
 cd "$target_home"
 if [[ ! -d llama.cpp ]]; then
   git clone https://github.com/ggerganov/llama.cpp.git
 fi
 cd llama.cpp
-cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS"
+cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS" -DCMAKE_HIP_COMPILER="$HIPCXX"
 cmake --build build -j"$(nproc)"
 USER_SCRIPT
 
