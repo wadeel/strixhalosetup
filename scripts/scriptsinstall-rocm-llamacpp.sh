@@ -81,7 +81,7 @@ if [[ ! -d llama.cpp ]]; then
   git clone https://github.com/ggerganov/llama.cpp.git
 fi
 cd llama.cpp
-cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS" -DCMAKE_HIP_COMPILER="$HIP_CLANG_PATH"
+cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS" -DCMAKE_HIP_COMPILER="$hip_clang_path"
 cmake --build build -j"$(nproc)"
 USER_SCRIPT
 
