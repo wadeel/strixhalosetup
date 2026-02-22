@@ -35,6 +35,7 @@ What it does:
 - Installs build dependencies and ROCm packages.
 - Adds your user to `render` and `video` groups.
 - Uses a hard-set default `AMDGPU_TARGETS` (`gfx1151`) unless you override it manually.
+- Uses ROCm `clang++` as the HIP compiler for CMake 3.28+ compatibility.
 - Clones and builds `llama.cpp` with `-DGGML_HIP=ON`.
 
 To override the default target manually, for example:
