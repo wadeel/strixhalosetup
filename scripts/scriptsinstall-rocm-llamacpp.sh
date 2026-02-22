@@ -33,11 +33,8 @@ usermod -aG render,video "$target_user"
 
 # Resolve ROCm tools from PATH first so the script works across package layouts.
 hipcc_path="$(command -v hipcc || true)"
-hipconfig_path="$(command -v hipconfig || true)"
-rocminfo_path="$(command -v rocminfo || true)"
-
-if [[ -z "$hipcc_path" || -z "$hipconfig_path" ]]; then
-  echo "Could not find hipcc/hipconfig in PATH after installing ROCm packages."
+if [[ -z "$hipcc_path" ]]; then
+  echo "Could not find hipcc in PATH after installing ROCm packages."
   echo "Verify installation and rerun this script."
   exit 1
 fi
@@ -52,55 +49,12 @@ export ROCM_PATH="$rocm_root"
 export HIP_PATH="$rocm_root"
 export HIPCXX="$hipcc_path"
 
+default_amdgpu_targets="${DEFAULT_AMDGPU_TARGETS:-gfx1151}"
+
 if [[ -z "${AMDGPU_TARGETS:-}" ]]; then
-  if [[ -z "$rocminfo_path" ]]; then
-    rocminfo_path="$rocm_root/bin/rocminfo"
-  fi
-
-  detect_targets() {
-    local from_rocminfo=""
-    local from_hipconfig=""
-    local from_hipcc=""
-
-    if [[ -x "$rocminfo_path" ]]; then
-      from_rocminfo="$("$rocminfo_path" 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) print $i}' | sort -u | paste -sd';' -)"
-    fi
-
-    if [[ -x "$hipconfig_path" ]]; then
-      from_hipconfig="$("$hipconfig_path" --amdgpu-target 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) print $i}' | sort -u | paste -sd';' -)"
-    fi
-
-    if [[ -x "$hipcc_path" ]]; then
-      from_hipcc="$("$hipcc_path" --offload-arch 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i ~ /^gfx[0-9a-z]+$/) print $i}' | sort -u | paste -sd';' -)"
-    fi
-
-    if [[ -n "$from_rocminfo" ]]; then
-      printf '%s' "$from_rocminfo"
-      return
-    fi
-
-    if [[ -n "$from_hipconfig" ]]; then
-      printf '%s' "$from_hipconfig"
-      return
-    fi
-
-    if [[ -n "$from_hipcc" ]]; then
-      printf '%s' "$from_hipcc"
-      return
-    fi
-  }
-
-  detected_targets="$(detect_targets || true)"
-  if [[ -z "$detected_targets" ]]; then
-    echo "Could not auto-detect AMD GPU target."
-    echo "Checked rocminfo, hipconfig --amdgpu-target, and hipcc --offload-arch."
-    echo "hipcc: $hipcc_path"
-    echo "hipconfig: $hipconfig_path"
-    echo "rocminfo: $rocminfo_path"
-    echo "Set AMDGPU_TARGETS manually (example: AMDGPU_TARGETS=gfx1100)."
-    exit 1
-  fi
-  export AMDGPU_TARGETS="$detected_targets"
+  export AMDGPU_TARGETS="$default_amdgpu_targets"
+  echo "AMDGPU_TARGETS was not set; using hard-set default: $AMDGPU_TARGETS"
+  echo "Override by running with AMDGPU_TARGETS=<gfx_target>."
 fi
 
 echo "Using AMDGPU_TARGETS=$AMDGPU_TARGETS"
