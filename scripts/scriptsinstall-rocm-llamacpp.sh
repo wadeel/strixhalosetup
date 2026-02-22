@@ -20,8 +20,14 @@ cat > /etc/apt/sources.list.d/rocm.list <<'LIST'
 deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3 noble main
 LIST
 
+cat > /etc/apt/preferences.d/rocm-pin-600 <<'PIN'
+Package: hipcc rocminfo rocm-cmake rocm-hip-runtime rocm-hip-runtime-dev rocm-hip-sdk rocm-smi-lib
+Pin: origin repo.radeon.com
+Pin-Priority: 1001
+PIN
+
 apt update
-apt -y install rocm-hip-runtime rocm-hip-sdk rocm-smi-lib rocminfo hipcc
+apt -y --allow-downgrades install rocm-cmake rocm-hip-runtime rocm-hip-runtime-dev rocm-hip-sdk rocm-smi-lib rocminfo hipcc
 
 usermod -aG render,video "$target_user"
 

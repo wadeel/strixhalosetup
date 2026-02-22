@@ -15,7 +15,7 @@ This repo installs ROCm 6.3 and builds `llama.cpp` with HIP support so you can r
 If this machine has nothing installed yet, run this first so you can clone from GitHub:
 
 ```bash
-sudo apt update && sudo apt install -y git curl ca-certificates
+sudo apt update && sudo apt upgrade -y && sudo apt install -y git curl ca-certificates
 ```
 
 Then clone this repo:
