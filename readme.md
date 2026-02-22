@@ -34,13 +34,27 @@ sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
 What it does:
 - Installs build dependencies and ROCm packages.
 - Adds your user to `render` and `video` groups.
-- Auto-detects your `AMDGPU_TARGETS` value from `rocminfo` (or uses one you set manually).
+- Uses a hard-set default `AMDGPU_TARGETS` (`gfx1151`) unless you override it manually.
 - Clones and builds `llama.cpp` with `-DGGML_HIP=ON`.
 
-If auto-detect fails, re-run with manual target, for example:
+To override the default target manually, for example:
 
 ```bash
-sudo AMDGPU_TARGETS=gfx1100 bash scripts/scriptsinstall-rocm-llamacpp.sh
+sudo AMDGPU_TARGETS=gfx1151 bash scripts/scriptsinstall-rocm-llamacpp.sh
+```
+
+### AMDGPU target behavior
+
+This installer now hard-sets a default AMD GPU target when `AMDGPU_TARGETS` is not provided:
+
+- Default: `gfx1151`
+- Override anytime by setting `AMDGPU_TARGETS` explicitly.
+
+Examples:
+
+```bash
+sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
+sudo AMDGPU_TARGETS=gfx1151 bash scripts/scriptsinstall-rocm-llamacpp.sh
 ```
 
 ## 3) Reboot and verify ROCm visibility
