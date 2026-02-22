@@ -25,6 +25,18 @@ apt -y install rocm-hip-runtime rocm-hip-sdk rocm-smi-lib rocminfo hipcc
 
 usermod -aG render,video "$target_user"
 
+if [[ -z "${AMDGPU_TARGETS:-}" ]]; then
+  detected_target="$(/opt/rocm/bin/rocminfo 2>/dev/null | awk '/Name: *gfx/{print $2; exit}')"
+  if [[ -z "$detected_target" ]]; then
+    echo "Could not auto-detect AMD GPU target from rocminfo."
+    echo "Set AMDGPU_TARGETS manually (example: AMDGPU_TARGETS=gfx1100)."
+    exit 1
+  fi
+  export AMDGPU_TARGETS="$detected_target"
+fi
+
+echo "Using AMDGPU_TARGETS=$AMDGPU_TARGETS"
+
 sudo -u "$target_user" bash <<USER_SCRIPT
 set -euo pipefail
 cd "$target_home"
@@ -32,7 +44,7 @@ if [[ ! -d llama.cpp ]]; then
   git clone https://github.com/ggerganov/llama.cpp.git
 fi
 cd llama.cpp
-cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1151
+cmake -S . -B build -G Ninja -DGGML_HIP=ON -DAMDGPU_TARGETS="$AMDGPU_TARGETS"
 cmake --build build -j"$(nproc)"
 USER_SCRIPT
 
