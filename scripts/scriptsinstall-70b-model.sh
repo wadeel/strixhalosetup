@@ -3,6 +3,10 @@ set -euo pipefail
 
 # Download a large GGUF model for llama.cpp.
 #
+# Note:
+# - llama.cpp does NOT require huggingface-cli to run models.
+# - huggingface-cli is only used here as a downloader when MODEL_SOURCE=huggingface.
+#
 # Supported sources:
 #   MODEL_SOURCE=huggingface (default)
 #   MODEL_SOURCE=url
@@ -26,8 +30,30 @@ set -euo pipefail
 
 model_source="${MODEL_SOURCE:-huggingface}"
 model_dir="${MODEL_DIR:-/models}"
+hf_cli_venv="${HF_CLI_VENV:-$HOME/.local/share/huggingface-cli-venv}"
 
 mkdir -p "$model_dir"
+
+ensure_huggingface_cli() {
+  if command -v huggingface-cli >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -x "$hf_cli_venv/bin/huggingface-cli" ]]; then
+    export PATH="$hf_cli_venv/bin:$PATH"
+    return 0
+  fi
+
+  echo "huggingface-cli not found. Installing in virtual environment: $hf_cli_venv"
+  if ! python3 -m venv "$hf_cli_venv"; then
+    echo "Failed to create venv at $hf_cli_venv"
+    echo "Install python3-venv (for example: sudo apt install python3-venv) and retry."
+    exit 1
+  fi
+
+  "$hf_cli_venv/bin/python" -m pip install --upgrade pip huggingface_hub
+  export PATH="$hf_cli_venv/bin:$PATH"
+}
 
 case "$model_source" in
   huggingface)
@@ -35,10 +61,7 @@ case "$model_source" in
     model_file="${MODEL_FILE:-}"
     model_pattern="${MODEL_PATTERN:-*Q4_K_M*.gguf}"
 
-    if ! command -v huggingface-cli >/dev/null 2>&1; then
-      python3 -m pip install --user --upgrade huggingface_hub
-      export PATH="$HOME/.local/bin:$PATH"
-    fi
+    ensure_huggingface_cli
 
     if [[ -n "${HF_TOKEN:-}" ]]; then
       huggingface-cli login --token "$HF_TOKEN" >/dev/null
