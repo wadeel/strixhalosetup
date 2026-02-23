@@ -13,21 +13,20 @@ export DEBIAN_FRONTEND=noninteractive
 apt update
 apt -y install wget gpg curl git build-essential cmake ninja-build pkg-config python3 python3-pip libssl-dev
 
-mkdir -p /etc/apt/keyrings
-wget -qO- https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
+# One-time cleanup for older ROCm package stacks/repos so amdgpu-install starts clean.
+rm -f /etc/apt/sources.list.d/rocm.list /etc/apt/preferences.d/rocm-pin-600
+apt -y purge 'rocm-*' 'hip*' 'roc*' 'amdgpu-dkms' 'amdgpu' || true
+apt -y autoremove --purge || true
 
-cat > /etc/apt/sources.list.d/rocm.list <<'LIST'
-deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3 noble main
-LIST
-
-cat > /etc/apt/preferences.d/rocm-pin-600 <<'PIN'
-Package: hipcc rocminfo rocm-cmake rocm-hip-runtime rocm-hip-runtime-dev rocm-hip-sdk rocm-smi-lib
-Pin: origin repo.radeon.com
-Pin-Priority: 1001
-PIN
+amdgpu_installer_deb='amdgpu-install_7.2.70200-1_all.deb'
+amdgpu_installer_url='https://repo.radeon.com/amdgpu-install/25.35/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb'
+wget -qO "$amdgpu_installer_deb" "$amdgpu_installer_url"
+apt -y install "./$amdgpu_installer_deb"
+amdgpu-install -y --usecase=rocm,hiplibsdk
+rm -f "$amdgpu_installer_deb"
 
 apt update
-apt -y --allow-downgrades install rocm-cmake rocm-hip-runtime rocm-hip-runtime-dev rocm-hip-sdk rocm-smi-lib rocminfo hipcc
+apt -y install rocm-cmake rocm-hip-runtime rocm-hip-runtime-dev rocm-hip-sdk rocm-smi-lib rocminfo hipcc
 
 usermod -aG render,video "$target_user"
 
