@@ -108,3 +108,50 @@ sudo bash scripts/scriptsinstall-shell-logging.sh
 ```
 
 This enables login-shell capture to `/var/log/shell-capture/<user>/`.
+
+## 5) Install a specific large GGUF model (default: Qwen3-Next-80B-A3B)
+
+Use the new helper script to download a large GGUF model into `/models` (or another directory). The default model repo is `puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf`.
+
+Default download (Hugging Face):
+
+```bash
+bash scripts/scriptsinstall-70b-model.sh
+```
+
+Choose a specific model + quant file explicitly:
+
+```bash
+MODEL_SOURCE=huggingface MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' MODEL_FILE='Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf' MODEL_DIR='/models' bash scripts/scriptsinstall-70b-model.sh
+```
+
+Or let the script match a quant pattern when exact filename is unknown:
+
+```bash
+MODEL_SOURCE=huggingface MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' MODEL_PATTERN='*Q4_K_M*.gguf' MODEL_DIR='/models' bash scripts/scriptsinstall-70b-model.sh
+```
+
+Use a direct URL source instead:
+
+```bash
+MODEL_SOURCE=url MODEL_URL='https://example.com/path/to/your-model.gguf' MODEL_FILE='your-model.gguf' MODEL_DIR='/models' bash scripts/scriptsinstall-70b-model.sh
+```
+
+### Where the models come from
+
+- **Hugging Face model repos** (most common for GGUF): set `MODEL_ID` to the repo and `MODEL_FILE` to the exact `.gguf` filename you want.
+- **Direct URLs**: if you already have a known `.gguf` download URL, use `MODEL_SOURCE=url` + `MODEL_URL`.
+
+### How to choose specifically
+
+1. Pick the **family/repo** (for example this Qwen3-Next-80B-A3B repo, Llama 70B repos, etc.).
+2. Pick a **quantization file** that fits your memory budget (`Q4_K_M` is a common starting point).
+3. Set `MODEL_ID` + `MODEL_FILE` to that exact pair.
+4. Run with `MODEL_DIR` set to where llama.cpp should read models from.
+
+Then run llama.cpp with the downloaded path:
+
+```bash
+cd ~/llama.cpp
+./build/bin/llama-cli -m /models/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf -ngl 999 -c 4096
+```
