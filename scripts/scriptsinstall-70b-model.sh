@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Note:
 # - llama.cpp does NOT require huggingface-cli to run models.
-# - Hugging Face tooling is only used here as a downloader when MODEL_SOURCE=huggingface.
+# - huggingface-cli is only used here as a downloader when MODEL_SOURCE=huggingface.
 #
 # Supported sources:
 #   MODEL_SOURCE=huggingface (default)
@@ -34,48 +34,25 @@ hf_cli_venv="${HF_CLI_VENV:-$HOME/.local/share/huggingface-cli-venv}"
 
 mkdir -p "$model_dir"
 
-hf_cli_mode=""
-hf_cli_python=""
-
-run_hf_cli() {
-  if [[ "$hf_cli_mode" == "binary" ]]; then
-    huggingface-cli "$@"
-  else
-    "$hf_cli_python" -m huggingface_hub.commands.huggingface_cli "$@"
-  fi
-}
-
 ensure_huggingface_cli() {
   if command -v huggingface-cli >/dev/null 2>&1; then
-    hf_cli_mode="binary"
     return 0
   fi
 
-  if [[ -x "$hf_cli_venv/bin/python" ]]; then
-    hf_cli_mode="python-module"
-    hf_cli_python="$hf_cli_venv/bin/python"
+  if [[ -x "$hf_cli_venv/bin/huggingface-cli" ]]; then
+    export PATH="$hf_cli_venv/bin:$PATH"
     return 0
   fi
 
-  echo "huggingface-cli not found. Trying virtual environment: $hf_cli_venv"
-  if python3 -m venv "$hf_cli_venv"; then
-    "$hf_cli_venv/bin/python" -m pip install --upgrade pip huggingface_hub
-    hf_cli_mode="python-module"
-    hf_cli_python="$hf_cli_venv/bin/python"
-    return 0
-  fi
-
-  echo "Warning: python3 -m venv failed (python3-venv/ensurepip may be missing)."
-  echo "Falling back to system Python install with --break-system-packages."
-
-  if ! python3 -m pip install --upgrade --break-system-packages huggingface_hub; then
-    echo "Failed to install huggingface_hub via system Python fallback."
-    echo "Install python3-venv (preferred) or install huggingface_hub manually, then retry."
+  echo "huggingface-cli not found. Installing in virtual environment: $hf_cli_venv"
+  if ! python3 -m venv "$hf_cli_venv"; then
+    echo "Failed to create venv at $hf_cli_venv"
+    echo "Install python3-venv (for example: sudo apt install python3-venv) and retry."
     exit 1
   fi
 
-  hf_cli_mode="python-module"
-  hf_cli_python="python3"
+  "$hf_cli_venv/bin/python" -m pip install --upgrade pip huggingface_hub
+  export PATH="$hf_cli_venv/bin:$PATH"
 }
 
 case "$model_source" in
