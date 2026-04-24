@@ -45,6 +45,39 @@ Run:
 sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
 ```
 
+If you accidentally type the older/misspelled filename, a compatibility wrapper is now included:
+
+```bash
+sudo bash scripts/scriptsinstall-rocm-llamcpp.sh
+
+> Important: The 512 MB BIOS frame buffer does **not** cap runtime LLM memory use for shared-memory APU workloads. Actual allocation still depends on kernel/driver behavior, model quantization, context size, and runtime pressure.
+
+---
+
+## 1) One-time bootstrap on fresh Ubuntu Desktop 24.04
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
+```
+
+Clone this repository:
+
+```bash
+git clone https://github.com/<your-org-or-user>/strixhalosetup.git
+cd strixhalosetup
+```
+
+---
+
+## 2) Install ROCm + build llama.cpp (HIP)
+
+Run:
+
+```bash
+sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
+```
+
 What the script does:
 
 - Installs dependencies and ROCm packages from AMD `amdgpu-install` for Ubuntu noble.
@@ -104,6 +137,9 @@ cd ~/llama.cpp
 ```
 
 ---
+
+## 4) Install/download GGUF models
+
 
 ## 4) Install/download GGUF models
 
