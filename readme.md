@@ -1,105 +1,170 @@
-# Strix Halo setup (Ubuntu Server 24.04 + AMDGPU installer + llama.cpp)
+# Strix Halo setup (Ubuntu Desktop 24.04 + ROCm + llama.cpp + Open WebUI)
 
-This repo installs ROCm via AMD's `amdgpu-install` package and builds `llama.cpp` with HIP support so you can run large GGUF models on AMD GPUs.
+This repo is now tuned for a **local LLM workstation** flow on **Ubuntu Desktop 24.04** (GUI), with:
 
-## 0) Prerequisites to verify first
+- ROCm + HIP on AMD Strix Halo systems.
+- `llama.cpp` built directly with HIP acceleration.
+- Open WebUI running locally in Docker.
+- Optional OpenClaw repo bootstrap.
 
-- Ubuntu Server **24.04 (noble)**.
-- Supported AMD GPU + driver stack compatible with AMDGPU installer 25.35 (ROCm 7.2 series packages).
-- Enough memory/VRAM for your chosen 70B quantization:
-  - 70B Q4 variants typically need roughly **40-50 GB** combined GPU/host memory.
-  - Plan additional headroom for long context windows.
+---
 
-## 1) One-time bootstrap command (fresh server)
+## 0) Hardware assumptions and BIOS notes
 
-If this machine has nothing installed yet, run this first so you can clone from GitHub:
+This setup assumes:
+
+- You already disabled **IOMMU**.
+- You set iGPU default/UMA frame buffer to **512 MB**.
+- You want llama.cpp to use large shared memory budgets (for example, up to ~128 GB addressable pool depending on workload).
+
+> Important: The 512 MB BIOS frame buffer does **not** cap runtime LLM memory use for shared-memory APU workloads. Actual allocation still depends on kernel/driver behavior, model quantization, context size, and runtime pressure.
+
+---
+
+## 1) One-time bootstrap on fresh Ubuntu Desktop 24.04
 
 ```bash
-sudo apt update && sudo apt upgrade -y && sudo apt install -y git curl ca-certificates
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
 ```
 
-Then clone this repo:
+Clone this repository:
 
 ```bash
 git clone https://github.com/<your-org-or-user>/strixhalosetup.git
 cd strixhalosetup
 ```
 
-## 2) Run ROCm + llama.cpp installer
+---
+
+## 2) Install ROCm + build llama.cpp (HIP)
+
+Run:
 
 ```bash
 sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
 ```
 
-What it does:
-- Installs build dependencies and ROCm packages.
-- Purges older ROCm package stacks/sources before reinstalling.
-- Installs `https://repo.radeon.com/amdgpu-install/25.35/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb`.
-- Adds your user to `render` and `video` groups.
-- Uses a hard-set default `AMDGPU_TARGETS` (`gfx1151`) unless you override it manually.
-- Uses ROCm `clang++` as the HIP compiler for CMake 3.28+ compatibility.
-- Clones and builds `llama.cpp` with `-DGGML_HIP=ON`.
-
-### One-time cleanup command (manual option)
-
-If you want to purge older ROCm stacks yourself before running the installer:
+If you accidentally type the older/misspelled filename, a compatibility wrapper is now included:
 
 ```bash
-sudo apt -y purge 'rocm-*' 'hip*' 'roc*' 'amdgpu-dkms' 'amdgpu' && sudo apt -y autoremove --purge
+sudo bash scripts/scriptsinstall-rocm-llamcpp.sh
 ```
 
-To override the default target manually, for example:
+What the script does:
+
+- Installs dependencies and ROCm packages from AMD `amdgpu-install` for Ubuntu noble.
+- Cleans older ROCm stacks before install.
+- Adds your user to `render` and `video`.
+- Builds `llama.cpp` with `-DGGML_HIP=ON`.
+- Uses `clang++` as HIP compiler for CMake 3.28+ compatibility.
+- Sets default `AMDGPU_TARGETS=gfx1151` (override when needed).
+
+Override target explicitly:
 
 ```bash
 sudo AMDGPU_TARGETS=gfx1151 bash scripts/scriptsinstall-rocm-llamacpp.sh
 ```
 
-### AMDGPU target behavior
-
-This installer now hard-sets a default AMD GPU target when `AMDGPU_TARGETS` is not provided:
-
-- Default: `gfx1151`
-- Override anytime by setting `AMDGPU_TARGETS` explicitly.
-
-Examples:
-
-```bash
-sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
-sudo AMDGPU_TARGETS=gfx1151 bash scripts/scriptsinstall-rocm-llamacpp.sh
-```
-
-## 3) Reboot and verify ROCm visibility
+Reboot:
 
 ```bash
 sudo reboot
 ```
 
-After reconnect:
+Verify after reboot:
 
 ```bash
 /opt/rocm/bin/rocminfo | grep -i gfx
 id -nG "$USER"
 ```
 
-You should see a `gfx...` target and your user should include `render` and `video` groups.
+Expected: a `gfx...` target appears, and your user is in `render` and `video`.
 
-## 4) Run a 70B model with llama.cpp
+---
 
-Example command (adjust model path, quant, context, and GPU layers):
+## 3) Run llama.cpp directly on the local hardware
+
+Example with aggressive GPU offload:
 
 ```bash
 cd ~/llama.cpp
 ./build/bin/llama-cli \
-  -m /models/your-70b-model.gguf \
+  -m /models/your-model.gguf \
   -ngl 999 \
-  -c 4096 \
+  -c 8192 \
   -n 256 \
-  -p "Write a one paragraph test response."
+  -p "Reply with a short hardware test summary."
 ```
 
-Notes:
-- `-ngl 999` asks llama.cpp to offload as many layers as possible.
-- If memory is tight, use a smaller quantization or lower context.
+If you prefer serving for WebUI/API clients:
+
+```bash
+cd ~/llama.cpp
+./build/bin/llama-server \
+  -m /models/your-model.gguf \
+  -ngl 999 \
+  -c 8192 \
+  --host 0.0.0.0 \
+  --port 8080
+```
+
+---
+
+## 4) Install/download GGUF models
+
+Use the helper script:
+
+```bash
+bash scripts/scriptsinstall-70b-model.sh
+```
+
+Example explicit model file:
+
+```bash
+MODEL_SOURCE=huggingface \
+MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' \
+MODEL_FILE='Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf' \
+MODEL_DIR='/models' \
+bash scripts/scriptsinstall-70b-model.sh
+```
+
+Or by pattern:
+
+```bash
+MODEL_SOURCE=huggingface \
+MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' \
+MODEL_PATTERN='*Q4_K_M*.gguf' \
+MODEL_DIR='/models' \
+bash scripts/scriptsinstall-70b-model.sh
+```
+
+---
+
+## 5) Install Open WebUI + optional OpenClaw bootstrap
+
+Run:
+
+```bash
+bash scripts/scriptsinstall-openwebui-openclaw.sh
+```
+
+This will:
+
+- Install Docker Engine if missing.
+- Run Open WebUI at `http://localhost:3000`.
+- Configure Open WebUI container with access to host llama.cpp endpoint at `http://host.docker.internal:8080/v1`.
+
+If you want to clone OpenClaw in the same pass:
+
+```bash
+OPENCLAW_REPO_URL='https://github.com/<your-org>/openclaw.git' \
+bash scripts/scriptsinstall-openwebui-openclaw.sh
+```
+
+Then point OpenClaw/Open WebUI to your llama.cpp server URL.
+
+---
 
 ## Optional: shell session logging installer
 
@@ -108,50 +173,3 @@ sudo bash scripts/scriptsinstall-shell-logging.sh
 ```
 
 This enables login-shell capture to `/var/log/shell-capture/<user>/`.
-
-## 5) Install a specific large GGUF model (default: Qwen3-Next-80B-A3B)
-
-Use the new helper script to download a large GGUF model into `/models` (or another directory). The default model repo is `puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf`.
-
-Default download (Hugging Face):
-
-```bash
-bash scripts/scriptsinstall-70b-model.sh
-```
-
-Choose a specific model + quant file explicitly:
-
-```bash
-MODEL_SOURCE=huggingface MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' MODEL_FILE='Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf' MODEL_DIR='/models' bash scripts/scriptsinstall-70b-model.sh
-```
-
-Or let the script match a quant pattern when exact filename is unknown:
-
-```bash
-MODEL_SOURCE=huggingface MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' MODEL_PATTERN='*Q4_K_M*.gguf' MODEL_DIR='/models' bash scripts/scriptsinstall-70b-model.sh
-```
-
-Use a direct URL source instead:
-
-```bash
-MODEL_SOURCE=url MODEL_URL='https://example.com/path/to/your-model.gguf' MODEL_FILE='your-model.gguf' MODEL_DIR='/models' bash scripts/scriptsinstall-70b-model.sh
-```
-
-### Where the models come from
-
-- **Hugging Face model repos** (most common for GGUF): set `MODEL_ID` to the repo and `MODEL_FILE` to the exact `.gguf` filename you want.
-- **Direct URLs**: if you already have a known `.gguf` download URL, use `MODEL_SOURCE=url` + `MODEL_URL`.
-
-### How to choose specifically
-
-1. Pick the **family/repo** (for example this Qwen3-Next-80B-A3B repo, Llama 70B repos, etc.).
-2. Pick a **quantization file** that fits your memory budget (`Q4_K_M` is a common starting point).
-3. Set `MODEL_ID` + `MODEL_FILE` to that exact pair.
-4. Run with `MODEL_DIR` set to where llama.cpp should read models from.
-
-Then run llama.cpp with the downloaded path:
-
-```bash
-cd ~/llama.cpp
-./build/bin/llama-cli -m /models/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf -ngl 999 -c 4096
-```
