@@ -64,19 +64,19 @@ case "$model_source" in
     ensure_huggingface_cli
 
     if [[ -n "${HF_TOKEN:-}" ]]; then
-      run_hf_cli login --token "$HF_TOKEN" >/dev/null
+      huggingface-cli login --token "$HF_TOKEN" >/dev/null
     fi
 
     if [[ -n "$model_file" ]]; then
       echo "Downloading exact file $model_file from $model_id into $model_dir"
-      run_hf_cli download "$model_id" "$model_file" \
+      huggingface-cli download "$model_id" "$model_file" \
         --local-dir "$model_dir" \
         --local-dir-use-symlinks False
       downloaded_ref="$model_file"
     else
       echo "MODEL_FILE not set; downloading files matching pattern '$model_pattern' from $model_id into $model_dir"
       echo "Set MODEL_FILE to force one exact GGUF filename."
-      run_hf_cli download "$model_id" \
+      huggingface-cli download "$model_id" \
         --include "$model_pattern" \
         --local-dir "$model_dir" \
         --local-dir-use-symlinks False
