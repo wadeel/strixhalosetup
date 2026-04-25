@@ -31,8 +31,8 @@ sudo apt install -y git curl ca-certificates
 Clone this repository:
 
 ```bash
-git clone https://github.com/<your-org-or-user>/strixhalosetup.git
-cd strixhalosetup
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
 ```
 
 ---
@@ -42,7 +42,8 @@ cd strixhalosetup
 Run:
 
 ```bash
-sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
+git clone https://github.com/<your-org-or-user>/strixhalosetup.git
+cd strixhalosetup
 ```
 
 If you accidentally type the older/misspelled filename, a compatibility wrapper is now included:
@@ -146,6 +147,10 @@ cd ~/llama.cpp
 Use the helper script:
 
 ```bash
+MODEL_SOURCE=huggingface \
+MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' \
+MODEL_FILE='Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf' \
+MODEL_DIR='/models' \
 bash scripts/scriptsinstall-70b-model.sh
 ```
 

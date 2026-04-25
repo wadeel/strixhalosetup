@@ -10,7 +10,51 @@ target_user="${SUDO_USER:-${USER}}"
 target_home="$(getent passwd "$target_user" | cut -d: -f6)"
 
 export DEBIAN_FRONTEND=noninteractive
-apt update
+
+recover_apt_update() {
+  local apt_log
+  apt_log="$(mktemp)"
+
+  if apt update 2>&1 | tee "$apt_log"; then
+    rm -f "$apt_log"
+    return 0
+  fi
+
+  mapfile -t broken_repos < <(
+    sed -n -E "s/^E: The repository '([^']+)' does not have a Release file\\./\\1/p" "$apt_log"
+  )
+
+  if [[ ${#broken_repos[@]} -eq 0 ]]; then
+    echo "apt update failed for a reason other than a missing Release file."
+    echo "See log: $apt_log"
+    return 1
+  fi
+
+  echo "Detected broken apt repositories. Disabling related source files:"
+  shopt -s nullglob
+  for repo in "${broken_repos[@]}"; do
+    repo_url="$(awk '{print $1}' <<<"$repo")"
+    repo_suite="$(awk '{print $2}' <<<"$repo")"
+    echo " - $repo_url ($repo_suite)"
+
+    for src_file in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+      if grep -Fq "$repo_url" "$src_file"; then
+        mv "$src_file" "${src_file}.disabled-by-strixhalosetup"
+        echo "   disabled: $src_file"
+      fi
+    done
+
+    if [[ -f /etc/apt/sources.list ]]; then
+      sed -i -E "\|^[[:space:]]*deb[[:space:]].*${repo_url}.*${repo_suite}| s|^|# disabled-by-strixhalosetup |" /etc/apt/sources.list
+    fi
+  done
+  shopt -u nullglob
+
+  rm -f "$apt_log"
+  apt update
+}
+
+recover_apt_update
 apt -y install wget gpg curl git build-essential cmake ninja-build pkg-config python3 python3-pip libssl-dev
 
 # One-time cleanup for older ROCm package stacks/repos so amdgpu-install starts clean.
@@ -25,7 +69,7 @@ apt -y install "./$amdgpu_installer_deb"
 amdgpu-install -y --usecase=rocm,hiplibsdk
 rm -f "$amdgpu_installer_deb"
 
-apt update
+recover_apt_update
 apt -y install rocm-cmake rocm-hip-runtime rocm-hip-runtime-dev rocm-hip-sdk rocm-smi-lib rocminfo hipcc
 
 usermod -aG render,video "$target_user"
