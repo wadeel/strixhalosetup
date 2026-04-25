@@ -31,6 +31,40 @@ sudo apt install -y git curl ca-certificates
 Clone this repository:
 
 ```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
+```
+
+---
+
+## 2) Install ROCm + build llama.cpp (HIP)
+
+Run:
+
+```bash
+git clone https://github.com/<your-org-or-user>/strixhalosetup.git
+cd strixhalosetup
+```
+
+If you accidentally type the older/misspelled filename, a compatibility wrapper is now included:
+
+```bash
+sudo bash scripts/scriptsinstall-rocm-llamcpp.sh
+
+> Important: The 512 MB BIOS frame buffer does **not** cap runtime LLM memory use for shared-memory APU workloads. Actual allocation still depends on kernel/driver behavior, model quantization, context size, and runtime pressure.
+
+---
+
+## 1) One-time bootstrap on fresh Ubuntu Desktop 24.04
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl ca-certificates
+```
+
+Clone this repository:
+
+```bash
 git clone https://github.com/<your-org-or-user>/strixhalosetup.git
 cd strixhalosetup
 ```
@@ -43,12 +77,6 @@ Run:
 
 ```bash
 sudo bash scripts/scriptsinstall-rocm-llamacpp.sh
-```
-
-If you accidentally type the older/misspelled filename, a compatibility wrapper is now included:
-
-```bash
-sudo bash scripts/scriptsinstall-rocm-llamcpp.sh
 ```
 
 What the script does:
@@ -113,9 +141,16 @@ cd ~/llama.cpp
 
 ## 4) Install/download GGUF models
 
+
+## 4) Install/download GGUF models
+
 Use the helper script:
 
 ```bash
+MODEL_SOURCE=huggingface \
+MODEL_ID='puwaer/Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-gguf' \
+MODEL_FILE='Qwen3-Next-80B-A3B-Thinking-GRPO-Uncensored-Q4_K_M.gguf' \
+MODEL_DIR='/models' \
 bash scripts/scriptsinstall-70b-model.sh
 ```
 
@@ -173,17 +208,3 @@ sudo bash scripts/scriptsinstall-shell-logging.sh
 ```
 
 This enables login-shell capture to `/var/log/shell-capture/<user>/`.
-
----
-
-## Troubleshooting: `apt update` fails due to old/broken PPA
-
-If your system has stale PPAs (for example a repo that has no `noble` Release file), the install scripts now attempt to auto-disable those source files and retry `apt update`.
-
-You can also clean them manually:
-
-```bash
-ls /etc/apt/sources.list.d
-sudo rm /etc/apt/sources.list.d/<broken-ppa>.list
-sudo apt update
-```

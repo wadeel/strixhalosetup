@@ -13,49 +13,6 @@ openwebui_data_dir="${OPENWEBUI_DATA_DIR:-/opt/open-webui}"
 openclaw_repo_url="${OPENCLAW_REPO_URL:-}"
 openclaw_dir="${OPENCLAW_DIR:-$HOME/openclaw}"
 
-recover_apt_update() {
-  local apt_log
-  apt_log="$(mktemp)"
-
-  if sudo apt update 2>&1 | tee "$apt_log"; then
-    rm -f "$apt_log"
-    return 0
-  fi
-
-  mapfile -t broken_repos < <(
-    sed -n -E "s/^E: The repository '([^']+)' does not have a Release file\\./\\1/p" "$apt_log"
-  )
-
-  if [[ ${#broken_repos[@]} -eq 0 ]]; then
-    echo "sudo apt update failed for a reason other than a missing Release file."
-    echo "See log: $apt_log"
-    return 1
-  fi
-
-  echo "Detected broken apt repositories. Disabling related source files:"
-  shopt -s nullglob
-  for repo in "${broken_repos[@]}"; do
-    repo_url="$(awk '{print $1}' <<<"$repo")"
-    repo_suite="$(awk '{print $2}' <<<"$repo")"
-    echo " - $repo_url ($repo_suite)"
-
-    for src_file in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
-      if sudo grep -Fq "$repo_url" "$src_file"; then
-        sudo mv "$src_file" "${src_file}.disabled-by-strixhalosetup"
-        echo "   disabled: $src_file"
-      fi
-    done
-
-    if [[ -f /etc/apt/sources.list ]]; then
-      sudo sed -i -E "\|^[[:space:]]*deb[[:space:]].*${repo_url}.*${repo_suite}| s|^|# disabled-by-strixhalosetup |" /etc/apt/sources.list
-    fi
-  done
-  shopt -u nullglob
-
-  rm -f "$apt_log"
-  sudo apt update
-}
-
 if [[ $EUID -eq 0 ]]; then
   echo "Please run as a regular user with sudo privileges (not root)."
   exit 1
@@ -66,7 +23,7 @@ if [[ ! "$openwebui_port" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-recover_apt_update
+sudo apt update
 sudo apt -y install ca-certificates curl git
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -78,7 +35,7 @@ if ! command -v docker >/dev/null 2>&1; then
     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
     $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
     sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-  recover_apt_update
+  sudo apt update
   sudo apt -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
