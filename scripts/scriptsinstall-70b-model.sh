@@ -4,8 +4,9 @@ set -euo pipefail
 # Download a large GGUF model for llama.cpp.
 #
 # Note:
-# - llama.cpp does NOT require huggingface-cli to run models.
-# - huggingface-cli is only used here as a downloader when MODEL_SOURCE=huggingface.
+# - llama.cpp does NOT require Hugging Face CLI to run models.
+# - hf (from huggingface_hub) is only used here as a downloader when
+#   MODEL_SOURCE=huggingface.
 #
 # Supported sources:
 #   MODEL_SOURCE=huggingface (default)
@@ -30,21 +31,21 @@ set -euo pipefail
 
 model_source="${MODEL_SOURCE:-huggingface}"
 model_dir="${MODEL_DIR:-/models}"
-hf_cli_venv="${HF_CLI_VENV:-$HOME/.local/share/huggingface-cli-venv}"
+hf_cli_venv="${HF_CLI_VENV:-$HOME/.local/share/hf-cli-venv}"
 
 mkdir -p "$model_dir"
 
-ensure_huggingface_cli() {
-  if command -v huggingface-cli >/dev/null 2>&1; then
+ensure_hf_cli() {
+  if command -v hf >/dev/null 2>&1; then
     return 0
   fi
 
-  if [[ -x "$hf_cli_venv/bin/huggingface-cli" ]]; then
+  if [[ -x "$hf_cli_venv/bin/hf" ]]; then
     export PATH="$hf_cli_venv/bin:$PATH"
     return 0
   fi
 
-  echo "huggingface-cli not found. Installing in virtual environment: $hf_cli_venv"
+  echo "hf command not found. Installing in virtual environment: $hf_cli_venv"
   apt install python3.12-venv
   if ! python3 -m venv "$hf_cli_venv"; then
     echo "Failed to create venv at $hf_cli_venv"
@@ -52,7 +53,7 @@ ensure_huggingface_cli() {
     exit 1
   fi
 
-  "$hf_cli_venv/bin/python" -m pip install --upgrade pip huggingface_hub
+  "$hf_cli_venv/bin/python" -m pip install -U pip huggingface_hub
   export PATH="$hf_cli_venv/bin:$PATH"
 }
 
@@ -62,22 +63,25 @@ case "$model_source" in
     model_file="${MODEL_FILE:-}"
     model_pattern="${MODEL_PATTERN:-*Q4_K_M*.gguf}"
 
-    ensure_huggingface_cli
+    ensure_hf_cli
 
     if [[ -n "${HF_TOKEN:-}" ]]; then
-      huggingface-cli login --token "$HF_TOKEN" >/dev/null
+      hf auth login --token "$HF_TOKEN" >/dev/null
+    elif [[ -t 0 ]]; then
+      echo "HF_TOKEN not set; running interactive login."
+      hf auth login
     fi
 
     if [[ -n "$model_file" ]]; then
       echo "Downloading exact file $model_file from $model_id into $model_dir"
-      huggingface-cli download "$model_id" "$model_file" \
+      hf download "$model_id" "$model_file" \
         --local-dir "$model_dir" \
         --local-dir-use-symlinks False
       downloaded_ref="$model_file"
     else
       echo "MODEL_FILE not set; downloading files matching pattern '$model_pattern' from $model_id into $model_dir"
       echo "Set MODEL_FILE to force one exact GGUF filename."
-      huggingface-cli download "$model_id" \
+      hf download "$model_id" \
         --include "$model_pattern" \
         --local-dir "$model_dir" \
         --local-dir-use-symlinks False
@@ -107,3 +111,4 @@ esac
 
 echo "Model download complete. Reference: $downloaded_ref"
 echo "Directory: $model_dir"
+ls -lh "$model_dir"/*.gguf 2>/dev/null || true
