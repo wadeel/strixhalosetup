@@ -45,6 +45,7 @@ ensure_huggingface_cli() {
   fi
 
   echo "huggingface-cli not found. Installing in virtual environment: $hf_cli_venv"
+  apt install python3.12-venv
   if ! python3 -m venv "$hf_cli_venv"; then
     echo "Failed to create venv at $hf_cli_venv"
     echo "Install python3-venv (for example: sudo apt install python3-venv) and retry."
